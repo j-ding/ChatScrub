@@ -40,7 +40,7 @@ To run this project, you need the following:
 
 4. **Run the Bot**:
    ```bash
-   python main.py
+   python chatscrub.py
    ```
 
 ---
