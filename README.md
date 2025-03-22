@@ -92,7 +92,7 @@ To run this project, you need the following:
 ---
 
 ## Screenshots
-(Optional: Add screenshots of the GUI and bot in action here.)
+![Screenshot of the Discord Message Manager GUI](SNAPSHOT_URL)
 
 ---
 
