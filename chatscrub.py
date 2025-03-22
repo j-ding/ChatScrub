@@ -69,9 +69,8 @@ class DiscordBotUI:
         # Configure Grid Layout for Expanding Effect
         self.scrollable_frame.columnconfigure(1, weight=1)
 
-    def display_messages(self, messages, keyword):
-        """Update Tkinter UI with messages and highlight keywords in red."""
-        # Clear old widgets
+    def display_messages(self, messages, keywords):
+        """Update Tkinter UI with messages and highlight multiple keywords in red."""
         for widget in self.scrollable_frame.winfo_children():
             widget.destroy()
 
@@ -81,53 +80,47 @@ class DiscordBotUI:
         for msg_id, (msg_obj, msg_text) in messages.items():
             var = tk.BooleanVar()
 
-            # Row frame that expands
+            # Ensure row_frame is always initialized
             row_frame = ttk.Frame(self.scrollable_frame)
             row_frame.grid(sticky="ew", padx=10, pady=2)
-            row_frame.columnconfigure(1, weight=1)  # Make column 1 expandable
+            row_frame.columnconfigure(1, weight=1)
 
-            # Checkbox
             chk = ttk.Checkbutton(row_frame, variable=var)
             chk.grid(row=0, column=0, sticky="w")
 
-            # Determine text widget width based on message length
             text_width = min(max(len(msg_text) // 2, 20), 100)
-
-            # Text widget with expanding behavior
             text_widget = tk.Text(row_frame, wrap="word", height=2, width=text_width)
-            text_widget.grid(row=0, column=1, sticky="nsew")  # Expand fully
+            text_widget.grid(row=0, column=1, sticky="nsew")
             text_widget.insert("1.0", msg_text)
-            text_widget.config(state="disabled")  # Read-only
+            text_widget.config(state="disabled")
 
-            # Apply red color to keyword
-            start_idx = "1.0"
-            while True:
-                start_idx = text_widget.search(keyword, start_idx, stopindex="end", nocase=True)
-                if not start_idx:
-                    break
-                end_idx = f"{start_idx}+{len(keyword)}c"
-                text_widget.config(state="normal")
-                text_widget.tag_add("highlight", start_idx, end_idx)
-                text_widget.config(state="disabled")
-                start_idx = end_idx
+            # Apply red color to all keywords
+            for keyword in keywords:
+                start_idx = "1.0"
+                while True:
+                    start_idx = text_widget.search(keyword, start_idx, stopindex="end", nocase=True)
+                    if not start_idx:
+                        break
+                    end_idx = f"{start_idx}+{len(keyword)}c"
+                    text_widget.config(state="normal")
+                    text_widget.tag_add("highlight", start_idx, end_idx)
+                    text_widget.config(state="disabled")
+                    start_idx = end_idx
 
             text_widget.tag_config("highlight", foreground="red")
 
             self.checkboxes.append(chk)
             self.message_vars.append((var, msg_obj))
 
-        # Ensure entire scrollable frame expands
-        self.scrollable_frame.columnconfigure(0, weight=1)
 
-        # Ensure the canvas updates
-        self.root.update_idletasks()
 
 
     def toggle_all(self):
         """Check or uncheck all message checkboxes."""
         new_state = self.select_all_var.get()
-        for var, _ in self.checkboxes:
+        for var, _ in self.message_vars:  # Iterate over stored BooleanVar objects
             var.set(new_state)
+
 
     def delete_selected(self):
         """Delete selected messages with feedback."""
@@ -164,53 +157,86 @@ async def on_ready():
     print(f"✅ Logged in as {bot.user}")
 
 @bot.command()
-async def find(ctx, keyword: str, *channels: discord.TextChannel):
-    """Find messages containing a keyword and update UI in batches."""
+async def find(ctx, *args):
+    """Find messages containing any of the given keywords in the specified channels."""
     global found_messages
     found_messages.clear()
-    
+
+    if len(args) < 2:
+        await ctx.send("Usage: `!find keyword1 keyword2 ... #channel1 #channel2`")
+        return
+
+    # Extract keywords (ignore anything that starts with '#' or '<#')
+    keywords = [word.lower() for word in args if not word.startswith("#") and not word.startswith("<#")]
+
+    # Extract channels correctly
+    channels = []
+    for word in args:
+        if word.startswith("#"):  # User manually types "#channel-name"
+            channel = discord.utils.get(ctx.guild.channels, name=word[1:])  # Remove '#'
+        elif word.startswith("<#") and word.endswith(">"):  # Proper channel mention "<#123456789>"
+            try:
+                channel_id = int(word.strip("<#>"))
+                channel = ctx.guild.get_channel(channel_id)
+            except ValueError:
+                continue  # Skip invalid channel IDs
+        else:
+            continue
+        
+        if channel:
+            channels.append(channel)
+
+    if not channels:
+        await ctx.send("No valid channels specified. Please mention channels using `#channel-name` or `<#channel_id>`.")
+        return
+
     msg_index = 1
     messages_to_display = {}
 
-    print(f"🔍 Searching for '{keyword}' in {len(channels)} channels...")  
+    print(f"🔍 Searching for {keywords} in {len(channels)} channels...")  
 
     for channel in channels:
         print(f"📡 Searching in #{channel.name}...")  
         try:
-            found_any = False  
-            batch_count = 0  # Track number of messages processed
-            
-            async for message in channel.history(limit=1000, oldest_first=True):
-                batch_count += 1
-
-                if batch_count % 1000 == 0:
-                    print(f"🔄 Processed {batch_count} messages in #{channel.name}...")
-
-                if keyword.lower() in message.content.lower():
+            async for message in channel.history(limit=None, oldest_first=True):
+                if any(keyword in message.content.lower() for keyword in keywords):
                     msg_text = f"[{channel.name}] {message.author}: {message.content} ({message.created_at.strftime('%Y-%m-%d %H:%M:%S')})"
                     found_messages[msg_index] = (message, msg_text)
                     messages_to_display[msg_index] = (message, msg_text)
                     print(f"✅ MATCH: {msg_text}")  
-                    found_any = True
                     msg_index += 1
-            
-            if not found_any:
-                print(f"❌ No matches in #{channel.name}")
 
         except discord.Forbidden:
             print(f"❌ No permission to read messages in #{channel.name}")
 
     if messages_to_display:
-        root.after(0, ui.display_messages, messages_to_display, keyword)
+        root.after(0, ui.display_messages, messages_to_display, keywords)
+
+
 
 async def delete_messages(messages):
-    """Delete selected messages from Discord."""
+    """Delete selected messages in bulk for faster performance."""
+    channel_messages = {}
+
+    # Group messages by channel
     for message in messages:
+        if message.channel not in channel_messages:
+            channel_messages[message.channel] = []
+        channel_messages[message.channel].append(message)
+
+    # Bulk delete messages per channel
+    for channel, msgs in channel_messages.items():
         try:
-            await message.delete()
-            print(f"🗑 Deleted: {message.content}")
+            if len(msgs) == 1:
+                await msgs[0].delete()  # Single message (purge requires 2+ messages)
+            else:
+                await channel.purge(check=lambda m: m.id in [msg.id for msg in msgs])
+            print(f"🗑 Deleted {len(msgs)} messages in #{channel.name}")
         except discord.Forbidden:
-            print(f"❌ No permission to delete: {message.content}")
+            print(f"❌ No permission to delete messages in #{channel.name}")
+        except discord.HTTPException as e:
+            print(f"⚠️ Error deleting messages: {e}")
+
 
 # Run Discord bot in a separate thread
 threading.Thread(target=run_discord_bot, daemon=True).start()
