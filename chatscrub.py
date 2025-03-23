@@ -109,6 +109,11 @@ class DiscordBotUI:
         page_size_combo.pack(side="left")
         page_size_combo.bind("<<ComboboxSelected>>", self.change_page_size)
 
+        # Selected count label (NEW)
+        self.selected_count_var = tk.StringVar(value="0 items selected")
+        self.selected_count = ttk.Label(self.pagination_frame, textvariable=self.selected_count_var)
+        self.selected_count.pack(side="right", padx=10)
+
         # Main Frame (Holds everything else) - Now with weight for resizing
         self.main_frame = ttk.Frame(self.root)
         self.main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
@@ -153,6 +158,9 @@ class DiscordBotUI:
         # Store checkboxes and message data
         self.checkboxes = []
         self.message_vars = []
+        
+        # Track selected messages across all pages (NEW)
+        self.selected_messages = {}
 
         # Pagination variables
         self.current_page = 1
@@ -181,6 +189,9 @@ class DiscordBotUI:
         self.all_messages.update(messages)
         self.keywords = keywords
         
+        # Reset selections when starting a new search
+        self.selected_messages = {}
+        
         # Calculate total pages
         self.total_pages = max(1, (len(self.all_messages) + self.items_per_page - 1) // self.items_per_page)
         self.current_page = 1
@@ -196,6 +207,9 @@ class DiscordBotUI:
 
     def display_current_page(self):
         """Display current page of messages."""
+        # Save current selections before clearing the page
+        self.save_current_selections()
+        
         # Clear existing widgets
         for widget in self.scrollable_frame.winfo_children():
             widget.destroy()
@@ -223,7 +237,15 @@ class DiscordBotUI:
             if msg_id in self.all_messages:
                 msg_obj, msg_text = self.all_messages[msg_id]
                 
+                # Create checkbox variable with trace to track changes
                 var = tk.BooleanVar()
+                
+                # Set the checkbox state based on stored selections
+                if msg_obj.id in self.selected_messages:
+                    var.set(True)
+                    
+                # Add trace to update selection dictionary when checkbox changes
+                var.trace_add("write", lambda *args, m_id=msg_obj.id, v=var: self.on_checkbox_change(m_id, v))
                 
                 # Create a frame for this row that spans the full width
                 row_frame = ttk.Frame(self.scrollable_frame)
@@ -259,17 +281,53 @@ class DiscordBotUI:
         # Update page information and button states
         self.update_pagination_controls()
         
+        # Update selection counts
+        self.update_selection_count()
+        
         # Force layout update to properly display the scrollable content
         self.scrollable_frame.update_idletasks()
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         self.canvas.yview_moveto(0)  # Scroll to top when page changes
+        
+    def on_checkbox_change(self, message_id, var):
+        """Track checkbox changes to maintain selections across pages."""
+        if var.get():
+            # Add to selections if checked
+            for _, msg_obj in self.message_vars:
+                if msg_obj.id == message_id:
+                    self.selected_messages[message_id] = msg_obj
+                    break
+        else:
+            # Remove from selections if unchecked
+            if message_id in self.selected_messages:
+                del self.selected_messages[message_id]
+                
+        # Update selection count display
+        self.update_selection_count()
+    
+    def save_current_selections(self):
+        """Save current page selections before changing pages."""
+        for var, msg_obj in self.message_vars:
+            if var.get():
+                self.selected_messages[msg_obj.id] = msg_obj
+            elif msg_obj.id in self.selected_messages:
+                del self.selected_messages[msg_obj.id]
+    
+    def update_selection_count(self):
+        """Update the selection count display."""
+        count = len(self.selected_messages)
+        self.selected_count_var.set(f"{count} {'item' if count == 1 else 'items'} selected")
+        
+        # Update Select All checkbox state based on current page
+        all_selected = all(var.get() for var, _ in self.message_vars) if self.message_vars else False
+        self.select_all_var.set(all_selected)
 
     def highlight_keyword(self, text_widget, keyword):
         """Highlight all occurrences of a keyword in a text widget."""
         # Make sure text widget is editable for highlighting
         text_widget.config(state="normal")
         
-        # Configure the highlight tag
+        # Configure the highlight tag with both red color and underline
         text_widget.tag_configure("highlight", foreground="red", underline=True)
         
         # Use a simple and reliable approach
@@ -374,22 +432,33 @@ class DiscordBotUI:
     def toggle_all(self):
         """Check or uncheck all visible message checkboxes."""
         new_state = self.select_all_var.get()
-        for var, _ in self.message_vars:
+        
+        # Update all checkboxes on current page
+        for var, msg_obj in self.message_vars:
             var.set(new_state)
+            
+            # Update the global selection dictionary 
+            if new_state:
+                self.selected_messages[msg_obj.id] = msg_obj
+            elif msg_obj.id in self.selected_messages:
+                del self.selected_messages[msg_obj.id]
+                
+        # Update selection count
+        self.update_selection_count()
 
     def delete_selected(self):
         """Delete selected messages with feedback."""
-        to_delete = [msg for var, msg in self.message_vars if var.get()]
-
-        if not to_delete:
+        selected_msgs = list(self.selected_messages.values())
+        
+        if not selected_msgs:
             self.status_label.config(text="No messages selected.", foreground="red")
             return
 
-        self.status_label.config(text="Deleting messages...", foreground="blue")
+        self.status_label.config(text=f"Deleting {len(selected_msgs)} messages...", foreground="blue")
         self.root.update_idletasks()
 
         # Create a new asyncio task for deletion
-        self.root.after(10, lambda: bot.loop.create_task(self.perform_deletion(to_delete)))
+        self.root.after(10, lambda: bot.loop.create_task(self.perform_deletion(selected_msgs)))
 
     async def perform_deletion(self, to_delete):
         """Perform async message deletion and update status."""
@@ -429,6 +498,13 @@ class DiscordBotUI:
             
             # Update all_messages and redisplay
             self.all_messages = new_all_messages
+            
+            # Remove deleted messages from selection dictionary 
+            for msg_id in deleted_msg_ids:
+                if msg_id in self.selected_messages:
+                    del self.selected_messages[msg_id]
+                    
+            # Update pagination
             self.total_pages = max(1, (len(self.all_messages) + self.items_per_page - 1) // self.items_per_page)
             
             # Adjust current page if needed
