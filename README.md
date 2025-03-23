@@ -1,118 +1,151 @@
 # ChatScrub
 
-## Description
-This project is a Python-based Discord bot combined with a Tkinter graphical user interface (GUI) that allows users to search for and manage messages in specified Discord channels. The bot can search for messages containing specific keywords and display them in a scrollable GUI. Users can then select messages to delete them in bulk. This tool is particularly useful for moderators or administrators who need to clean up or manage messages in their Discord servers.
+# Discord Message Manager
 
-### Key Features:
-- **Keyword Search**: Search for messages containing specific keywords in specified channels.
-- **Bulk Deletion**: Select and delete multiple messages at once.
-- **User-Friendly GUI**: A Tkinter-based interface for easy interaction.
-- **Asynchronous Operations**: The bot runs asynchronously to ensure smooth performance.
+A powerful desktop application for finding and managing Discord messages in bulk. This tool allows server administrators and moderators to efficiently search for messages containing specific keywords across multiple channels, highlight matches, and delete them as needed.
 
----
+![Discord Message Manager](https://your-screenshot-url-here.png)
 
-## Requirements
-To run this project, you need the following:
+## Features
+
+- **Powerful Search**: Search for multiple keywords simultaneously across selected Discord channels
+- **Real-time Progress**: Monitor search progress with detailed information (messages scanned, matches found)
+- **Pagination System**: Navigate through large result sets with ease
+- **Highlighted Matches**: Keywords are highlighted in red and underlined for easy identification
+- **Cross-Page Selection**: Select messages across different pages and delete them in a single operation
+- **Responsive UI**: Message displays automatically resize to fit window dimensions
+- **Performance Optimized**: Handles large result sets (thousands of messages) without freezing
+- **Bulk Deletion**: Delete multiple messages at once with progress tracking
+
+## Prerequisites
+
 - Python 3.8 or higher
-- `discord.py` library (`pip install discord.py`)
-- `python-dotenv` library (`pip install python-dotenv`)
-- A Discord bot token (stored in a `.env` file)
+- Discord Bot Token with necessary permissions (Read Messages, Read Message History, Manage Messages)
+- Administrative access to the Discord server you want to manage
 
----
+## Installation & Setup
 
-## Setup
-1. **Clone the Repository**:
-   ```bash
-   git clone https://github.com/your-username/your-repo-name.git
-   cd your-repo-name
+1. **Clone the repository**:
+   ```
+   git clone https://github.com/yourusername/discord-message-manager.git
+   cd discord-message-manager
    ```
 
-2. **Install Dependencies**:
-   ```bash
+2. **Install required packages**:
+   ```
    pip install -r requirements.txt
    ```
 
-3. **Create a `.env` File**:
-   Add your Discord bot token to a `.env` file in the root directory:
+3. **Create a Discord Bot**:
+   - Go to [Discord Developer Portal](https://discord.com/developers/applications)
+   - Create a New Application
+   - Navigate to the "Bot" tab and click "Add Bot"
+   - Under the "Privileged Gateway Intents" section, enable:
+     - Presence Intent
+     - Server Members Intent
+     - Message Content Intent
+
+4. **Create a .env file** in the project root with your bot token:
    ```
-   DISCORD_BOT_TOKEN=your-discord-bot-token-here
+   DISCORD_BOT_TOKEN=your_bot_token_here
    ```
 
-4. **Run the Bot**:
-   ```bash
-   python chatscrub.py
-   ```
-
----
+5. **Invite the bot to your server** using the OAuth2 URL with the following permissions:
+   - Read Messages/View Channels
+   - Read Message History
+   - Manage Messages
 
 ## Usage
 
-### 1. **Start the Bot**
-   - Run the script, and the bot will log in to Discord. The Tkinter GUI will also open.
+### Running the Application
 
-### 2. **Search for Messages**
-   - Use the `!find` command in Discord to search for messages containing specific keywords in specified channels.
-   - Example command:
-     ```
-     !find keyword1 keyword2 #channel1 #channel2
-     ```
-   - The bot will search for messages containing `keyword1` or `keyword2` in `#channel1` and `#channel2`.
+Launch the application:
+```
+python discord_message_manager.py
+```
 
-### 3. **View Results in the GUI**
-   - The GUI will display all found messages, with keywords highlighted in red.
-   - Use the "Select All" checkbox to select or deselect all messages.
+The Tkinter UI will open automatically while connecting to Discord in the background.
 
-### 4. **Delete Selected Messages**
-   - Click the "Delete Selected" button to delete the selected messages.
-   - The status label will update to indicate the progress and completion of the deletion.
+### Searching for Messages
 
----
+In any Discord channel where the bot is present, use the following command:
+```
+!find keyword1 keyword2 ... #channel1 #channel2 ...
+```
 
-## Example Commands and Expected Results
+For example:
+```
+!find backup restricted #general #moderator-chat #tech-support
+```
 
-### Example 1: Search for Messages
-- **Command**:
-  ```
-  !find hello #general
-  ```
-- **Expected Result**:
-  - The bot will search for messages containing the word "hello" in the `#general` channel.
-  - The GUI will display all matching messages, with "hello" highlighted in red.
+This will search for messages containing either "backup" or "restricted" in the specified channels.
 
-### Example 2: Bulk Delete Messages
-- **Command**:
-  ```
-  !find spam #off-topic
-  ```
-- **Expected Result**:
-  - The bot will search for messages containing the word "spam" in the `#off-topic` channel.
-  - In the GUI, select the messages you want to delete and click "Delete Selected."
-  - The bot will delete the selected messages, and the status label will show "Deletion complete!"
+### Managing Search Results
 
----
+1. **Navigate Results**: Use the pagination controls to browse through matches
+2. **Select Messages**: Check the boxes next to messages you want to delete
+   - Selections persist across pages
+   - Current selection count is displayed
+3. **Delete Selected**: Click the "Delete Selected" button to remove all selected messages
+4. **Monitor Progress**: Watch real-time progress as messages are deleted
 
-## Screenshots
-![Screenshot of the Discord Message Manager GUI](SNAPSHOT_URL)
+### Keyboard Shortcuts
 
----
+- **Page Up/Down**: Navigate between result pages
+- **Ctrl+A**: Select all messages on current page
+- **Delete**: Delete selected messages
 
-## Contributing
-Contributions are welcome! If you'd like to contribute, please follow these steps:
-1. Fork the repository.
-2. Create a new branch for your feature or bugfix.
-3. Submit a pull request.
+## Advanced Usage
 
----
+### Testing Keyword Matching
+
+For debugging or testing purposes, use the `!testkeyword` command:
+```
+!testkeyword keyword example text to test
+```
+
+This will show whether the keyword matches in the given text and display character codes to help identify issues with special characters.
+
+### Handling Large Result Sets
+
+For servers with many messages, the tool automatically:
+- Limits results to 10,000 matches (configurable)
+- Processes results in batches to maintain performance
+- Shows warnings when result limits are reached
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Bot doesn't respond to commands**:
+   - Ensure the bot has proper permissions
+   - Check that you've enabled Message Content Intent in the Developer Portal
+   - Verify your bot token is correct in the .env file
+
+2. **UI becomes unresponsive**:
+   - Reduce "Items per page" setting for very large result sets
+   - Try more specific keywords to narrow down results
+
+3. **Cannot delete messages**:
+   - Ensure the bot has "Manage Messages" permission
+   - Discord only allows bulk deletion of messages less than 14 days old
 
 ## License
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Credits
+
+Built with:
+- Python 3
+- discord.py
+- Tkinter
+- dotenv
+
+## Contributing
+
+Contributions, issues, and feature requests are welcome! Feel free to check the issues page.
 
 ---
 
-## Acknowledgments
-- Thanks to the `discord.py` library for making Discord bot development easy.
-- Special thanks to the Python community for creating amazing tools like Tkinter.
-
----
-
-Feel free to customize this `README.md` to better fit your project! Let me know if you need further assistance. 😊
+*Note: This tool is intended for server administrators and moderators. Always use responsibly and in accordance with Discord's Terms of Service.*
