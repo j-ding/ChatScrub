@@ -27,8 +27,8 @@ A powerful desktop application for finding and managing Discord messages in bulk
 
 1. **Clone the repository**:
    ```
-   git clone https://github.com/yourusername/discord-message-manager.git
-   cd discord-message-manager
+   git clone https://github.com/j-ding/ChatScrub.git
+   cd ChatScrub
    ```
 
 2. **Install required packages**:
@@ -61,7 +61,7 @@ A powerful desktop application for finding and managing Discord messages in bulk
 
 Launch the application:
 ```
-python discord_message_manager.py
+python ChatScrub.py
 ```
 
 The Tkinter UI will open automatically while connecting to Discord in the background.
