@@ -79,8 +79,6 @@ This Discord bot helps you manage messages by providing powerful search capabili
 - **Ctrl+A**: Select all messages on current page
 - **Delete**: Delete selected messages
 
-## Advanced Usage
-
 ## How to Use
 
 ### Basic Search
@@ -126,23 +124,6 @@ For servers with many messages, the tool automatically:
 - Limits results to 10,000 matches (configurable)
 - Processes results in batches to maintain performance
 - Shows warnings when result limits are reached
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Bot doesn't respond to commands**:
-   - Ensure the bot has proper permissions
-   - Check that you've enabled Message Content Intent in the Developer Portal
-   - Verify your bot token is correct in the .env file
-
-2. **UI becomes unresponsive**:
-   - Reduce "Items per page" setting for very large result sets
-   - Try more specific keywords to narrow down results
-
-3. **Cannot delete messages**:
-   - Ensure the bot has "Manage Messages" permission
-   - Discord only allows bulk deletion of messages less than 14 days old
 
 ## License
 
