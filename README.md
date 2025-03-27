@@ -1,27 +1,35 @@
 # ChatScrub
 
-# Discord Message Manager
+# Discord Message Manager Bot
 
-A powerful desktop application for finding and managing Discord messages in bulk. This tool allows server administrators and moderators to efficiently search for messages containing specific keywords across multiple channels, highlight matches, and delete them as needed.
+This Discord bot helps you manage messages by providing powerful search capabilities with an exclusion system to filter out unwanted matches. The bot combines Discord's API with a Tkinter GUI to create a comprehensive message management solution.
 
-![Discord Message Manager](https://your-screenshot-url-here.png)
+## Key Features
 
-## Features
+### 1. Message Search
+- Search for keywords across multiple Discord channels simultaneously
+- Process large volumes of messages efficiently with batch processing
+- View matched messages in a paginated interface
+- Highlight matched keywords in search results
 
-- **Powerful Search**: Search for multiple keywords simultaneously across selected Discord channels
-- **Real-time Progress**: Monitor search progress with detailed information (messages scanned, matches found)
-- **Pagination System**: Navigate through large result sets with ease
-- **Highlighted Matches**: Keywords are highlighted in red and underlined for easy identification
-- **Cross-Page Selection**: Select messages across different pages and delete them in a single operation
-- **Responsive UI**: Message displays automatically resize to fit window dimensions
-- **Performance Optimized**: Handles large result sets (thousands of messages) without freezing
-- **Bulk Deletion**: Delete multiple messages at once with progress tracking
+### 2. Keyword Exclusion System
+- Exclude specific words from search results to reduce false positives
+- Each keyword can have its own list of exclusion words
+- Exclusions are server-specific and persist between bot restarts
+- Bulk add exclusions for quick setup
 
-## Prerequisites
+### 3. Message Management
+- Select and delete multiple messages at once
+- Track deletion progress with real-time feedback
+- Select all visible messages with a single click
+- Customize results per page (10/25/50/100)
 
-- Python 3.8 or higher
-- Discord Bot Token with necessary permissions (Read Messages, Read Message History, Manage Messages)
-- Administrative access to the Discord server you want to manage
+### 4. User Interface
+- Clean Tkinter interface for easy interaction
+- Progress tracking with elapsed time display
+- Pagination controls for navigating large result sets
+- Visual display of current exclusion lists
+
 
 ## Installation & Setup
 
@@ -55,39 +63,15 @@ A powerful desktop application for finding and managing Discord messages in bulk
    - Read Message History
    - Manage Messages
 
-## Usage
 
-### Running the Application
+## Implementation Highlights
 
-Launch the application:
-```
-python ChatScrub.py
-```
+- **Fixed Exclusion Logic**: Simple yet effective algorithm to properly filter out excluded terms
+- **Batch Processing**: Handles large result sets without UI freezing
+- **Real-time Updates**: Provides search progress and results as they're found
+- **Persistent Storage**: Saves exclusion lists to JSON for future use
+- **Error Handling**: Robust error catching for Discord API interactions
 
-The Tkinter UI will open automatically while connecting to Discord in the background.
-
-### Searching for Messages
-
-In any Discord channel where the bot is present, use the following command:
-```
-!find keyword1 keyword2 ... #channel1 #channel2 ...
-```
-
-For example:
-```
-!find backup restricted #general #moderator-chat #tech-support
-```
-
-This will search for messages containing either "backup" or "restricted" in the specified channels.
-
-### Managing Search Results
-
-1. **Navigate Results**: Use the pagination controls to browse through matches
-2. **Select Messages**: Check the boxes next to messages you want to delete
-   - Selections persist across pages
-   - Current selection count is displayed
-3. **Delete Selected**: Click the "Delete Selected" button to remove all selected messages
-4. **Monitor Progress**: Watch real-time progress as messages are deleted
 
 ### Keyboard Shortcuts
 
@@ -97,15 +81,45 @@ This will search for messages containing either "backup" or "restricted" in the 
 
 ## Advanced Usage
 
-### Testing Keyword Matching
+## How to Use
 
-For debugging or testing purposes, use the `!testkeyword` command:
+### Basic Search
 ```
-!testkeyword keyword example text to test
+!find keyword1 keyword2 #channel1 #channel2
 ```
+Searches for messages containing any of the keywords in the specified channels.
 
-This will show whether the keyword matches in the given text and display character codes to help identify issues with special characters.
+### Managing Exclusions
+```
+!addexclude keyword exclusion1 exclusion2 exclusion3
+```
+Adds words to exclude from results when searching for a specific keyword.
 
+```
+!bulkexclude keyword exclusion1 exclusion2 exclusion3 ...
+```
+Adds multiple exclusion words at once (ideal for long lists).
+
+```
+!removeexclude keyword exclusion
+```
+Removes a specific exclusion word from a keyword.
+
+```
+!removeexclude keyword
+```
+Removes all exclusions for a keyword.
+
+```
+!listexcludes [keyword]
+```
+Lists all exclusions for a specific keyword or all keywords.
+
+### Testing Exclusions
+```
+!testkeyword keyword "This is a sample message"
+```
+Tests whether a keyword would match in a sample message, considering exclusions.
 ### Handling Large Result Sets
 
 For servers with many messages, the tool automatically:
