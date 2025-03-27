@@ -1,27 +1,3 @@
-def update_matches(self, new_messages):
-        """Update the matches with new batch of messages during incremental search."""
-        # Add new messages to all_messages
-        if not hasattr(self, 'all_messages'):
-            self.all_messages = {}
-            
-        self.all_messages.update(new_messages)
-        
-        # If this is the first batch, set keywords and display first page
-        if not hasattr(self, 'keywords'):
-            self.keywords = []
-            
-        # Calculate total pages
-        self.total_pages = max(1, (len(self.all_messages) + self.items_per_page - 1) // self.items_per_page)
-        
-        # Update pagination controls
-        self.update_pagination_controls()
-        
-        # Update progress display
-        global search_in_progress
-        if not search_in_progress:
-            search_in_progress = False
-            search_end_time = time.time()
-            self.update_progress_ui()
 import os
 import discord
 import tkinter as tk
@@ -31,6 +7,8 @@ from dotenv import load_dotenv
 import asyncio
 import threading
 import time
+import json
+import os.path
 
 # Load bot token from .env file
 load_dotenv()
@@ -56,7 +34,32 @@ channels_total = 0
 current_channel = ""
 search_start_time = 0
 search_end_time = 0
-max_results = 10000  # Maximum number of results to store (to prevent memory issues)
+max_results = 100000  # Maximum number of results to store (to prevent memory issues)
+
+# Exclusion system variables
+exclusion_lists = {}  # Dictionary to store exclusion lists by guild ID
+EXCLUSION_FILE = "exclusion_lists.json"  # File to store exclusion lists
+
+def load_exclusion_lists():
+    """Load exclusion lists from file."""
+    global exclusion_lists
+    try:
+        if os.path.exists(EXCLUSION_FILE):
+            with open(EXCLUSION_FILE, 'r') as f:
+                exclusion_lists = json.load(f)
+                print(f"Loaded exclusion lists for {len(exclusion_lists)} guilds")
+    except Exception as e:
+        print(f"Error loading exclusion lists: {e}")
+        exclusion_lists = {}
+
+def save_exclusion_lists():
+    """Save exclusion lists to file."""
+    try:
+        with open(EXCLUSION_FILE, 'w') as f:
+            json.dump(exclusion_lists, f, indent=2)
+        print("Exclusion lists saved to file")
+    except Exception as e:
+        print(f"Error saving exclusion lists: {e}")
 
 class DiscordBotUI:
     def __init__(self, root):
@@ -103,9 +106,9 @@ class DiscordBotUI:
         
         # Select items per page
         ttk.Label(self.pagination_frame, text="Items per page:").pack(side="left", padx=(20, 5))
-        self.page_size_var = tk.StringVar(value="25")
+        self.page_size_var = tk.StringVar(value="100")
         page_size_combo = ttk.Combobox(self.pagination_frame, textvariable=self.page_size_var, 
-                                        values=["10", "25", "50", "100"], width=5)
+                                        values=["50", "100", "500","1000"], width=5)
         page_size_combo.pack(side="left")
         page_size_combo.bind("<<ComboboxSelected>>", self.change_page_size)
 
@@ -149,7 +152,11 @@ class DiscordBotUI:
 
         # Delete Button
         self.delete_button = ttk.Button(self.root, text="Delete Selected", command=self.delete_selected)
-        self.delete_button.pack(pady=10)
+        self.delete_button.pack(pady=5)
+        
+        # Add a button to show exclusions
+        self.exclusions_button = ttk.Button(self.root, text="Show Exclusion Lists", command=self.show_exclusions)
+        self.exclusions_button.pack(pady=5)
 
         # Status Label
         self.status_label = ttk.Label(self.root, text="", foreground="blue")
@@ -204,6 +211,35 @@ class DiscordBotUI:
         search_in_progress = False
         search_end_time = time.time()
         self.update_progress_ui()
+        
+    def update_matches(self, new_messages):
+        """Update the matches with new batch of messages during incremental search."""
+        try:
+            # Add new messages to all_messages
+            if not hasattr(self, 'all_messages'):
+                self.all_messages = {}
+                
+            self.all_messages.update(new_messages)
+            
+            # If this is the first batch, set keywords if not already set
+            if not hasattr(self, 'keywords'):
+                self.keywords = []
+            
+            # Calculate total pages
+            self.total_pages = max(1, (len(self.all_messages) + self.items_per_page - 1) // self.items_per_page)
+            
+            # Update pagination controls
+            self.update_pagination_controls()
+            
+            # Show loading message in UI
+            self.status_label.config(text=f"Processing {len(self.all_messages)} matches...", foreground="blue")
+            
+            # Force UI update
+            self.root.update_idletasks()
+            
+            print(f"Added batch of {len(new_messages)} messages, total now: {len(self.all_messages)}")
+        except Exception as e:
+            print(f"Error updating matches: {e}")
 
     def display_current_page(self):
         """Display current page of messages."""
@@ -525,6 +561,80 @@ class DiscordBotUI:
                 text=f"Successfully deleted {success_deletions} messages!", 
                 foreground="green"
             )
+            
+    def finalize_results(self, keywords):
+        """Finalize the display of results after all batches have been processed."""
+        try:
+            # Make sure we have the keywords
+            self.keywords = keywords
+                
+            # Reset to first page
+            self.current_page = 1
+                
+            # Calculate total pages
+            self.total_pages = max(1, (len(self.all_messages) + self.items_per_page - 1) // self.items_per_page)
+                
+            # Display the first page
+            self.display_current_page()
+                
+            # Update progress display
+            global search_in_progress, search_end_time
+            search_in_progress = False
+                
+            # Update status
+            self.status_label.config(text=f"Displaying {len(self.all_messages)} matches", foreground="green")
+                
+            # Force UI update
+            self.root.update_idletasks()
+                
+            print(f"Results display finalized. {len(self.all_messages)} messages ready.")
+            
+        except Exception as e:
+            print(f"Error finalizing results: {e}")
+            self.status_label.config(text=f"Error displaying results: {e}", foreground="red")
+    
+    def show_exclusions(self):
+        """Show the current exclusion lists in a popup window."""
+        # Create a popup window
+        popup = tk.Toplevel(self.root)
+        popup.title("Keyword Exclusion Lists")
+        popup.geometry("500x400")
+        
+        # Create a frame for the content
+        frame = ttk.Frame(popup, padding=10)
+        frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Get current guild ID if available
+        try:
+            guild_id = str(next(iter(bot.guilds)).id)
+            guild_exclusions = exclusion_lists.get(guild_id, {})
+            
+            if not guild_exclusions:
+                ttk.Label(frame, text="No exclusion lists set up for this server.").pack(pady=10)
+            else:
+                # Create a text widget to display the exclusions
+                text = tk.Text(frame, wrap=tk.WORD, width=60, height=20)
+                text.pack(fill=tk.BOTH, expand=True)
+                
+                # Add scrollbar
+                scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=text.yview)
+                scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+                text.config(yscrollcommand=scrollbar.set)
+                
+                # Add the exclusions to the text widget
+                for keyword, exclusions in guild_exclusions.items():
+                    if exclusions:
+                        text.insert(tk.END, f"\nKeyword: {keyword}\n")
+                        for exclude in exclusions:
+                            text.insert(tk.END, f"  - {exclude}\n")
+                            
+                # Make the text widget read-only
+                text.config(state=tk.DISABLED)
+        except Exception as e:
+            ttk.Label(frame, text=f"Error loading exclusion lists: {e}").pack(pady=10)
+        
+        # Add a close button
+        ttk.Button(popup, text="Close", command=popup.destroy).pack(pady=10)
 
 # Instantiate UI
 root = tk.Tk()
@@ -540,32 +650,215 @@ def run_discord_bot():
 async def on_ready():
     """Event handler for when the bot is ready."""
     print(f"✅ Logged in as {bot.user}")
+    load_exclusion_lists()  # Load exclusion lists when bot starts
+
+@bot.command()
+async def addexclude(ctx, keyword, *exclude_words):
+    """Add one or more words to exclude from the results of a specific keyword.
+    
+    Usage: !addexclude <keyword> <word1> <word2> <word3> ...
+    Example: !addexclude alt although alternative alteria altered
+    """
+    if not exclude_words:
+        await ctx.send("❌ Please provide at least one word to exclude. Usage: `!addexclude <keyword> <word1> <word2> ...`")
+        return
+        
+    guild_id = str(ctx.guild.id)
+    keyword = keyword.lower().strip()
+    
+    # Initialize guild's exclusion list if it doesn't exist
+    if guild_id not in exclusion_lists:
+        exclusion_lists[guild_id] = {}
+    
+    # Initialize keyword's exclusion list if it doesn't exist
+    if keyword not in exclusion_lists[guild_id]:
+        exclusion_lists[guild_id][keyword] = []
+    
+    # Add each word to exclude if it's not already in the list
+    added_words = []
+    already_exists = []
+    
+    for word in exclude_words:
+        word = word.lower().strip()
+        if word and word not in exclusion_lists[guild_id][keyword]:
+            exclusion_lists[guild_id][keyword].append(word)
+            added_words.append(word)
+        elif word:
+            already_exists.append(word)
+    
+    # Save changes
+    if added_words:
+        save_exclusion_lists()
+        
+        # Format the response message
+        if len(added_words) == 1:
+            await ctx.send(f"Added `{added_words[0]}` to the exclusion list for keyword `{keyword}`")
+        else:
+            word_list = ", ".join([f"`{word}`" for word in added_words])
+            await ctx.send(f"Added {len(added_words)} words to the exclusion list for keyword `{keyword}`:\n{word_list}")
+    
+    # Mention any words that were already in the list
+    if already_exists:
+        if len(already_exists) == 1:
+            await ctx.send(f"`{already_exists[0]}` was already in the exclusion list for keyword `{keyword}`")
+        else:
+            word_list = ", ".join([f"`{word}`" for word in already_exists])
+            await ctx.send(f"These words were already in the exclusion list for keyword `{keyword}`:\n{word_list}")
+            
+    # If no words were added (all were duplicates), let the user know
+    if not added_words and not already_exists:
+        await ctx.send("No valid words were provided to add to the exclusion list.")
+
+@bot.command()
+async def removeexclude(ctx, keyword, exclude_word=None):
+    """Remove a word from the exclusion list for a specific keyword.
+    If exclude_word is not provided, removes all exclusions for that keyword."""
+    guild_id = str(ctx.guild.id)
+    keyword = keyword.lower().strip()
+    
+    # Check if guild has any exclusion lists
+    if guild_id not in exclusion_lists:
+        await ctx.send("This server has no exclusion lists set up.")
+        return
+    
+    # Check if keyword has any exclusions
+    if keyword not in exclusion_lists[guild_id]:
+        await ctx.send(f"No exclusions found for keyword `{keyword}`")
+        return
+    
+    # Remove specific exclude word or all for the keyword
+    if exclude_word:
+        exclude_word = exclude_word.lower().strip()
+        if exclude_word in exclusion_lists[guild_id][keyword]:
+            exclusion_lists[guild_id][keyword].remove(exclude_word)
+            save_exclusion_lists()
+            await ctx.send(f"Removed `{exclude_word}` from exclusion list for keyword `{keyword}`")
+        else:
+            await ctx.send(f"`{exclude_word}` is not in the exclusion list for keyword `{keyword}`")
+    else:
+        del exclusion_lists[guild_id][keyword]
+        save_exclusion_lists()
+        await ctx.send(f"Removed all exclusions for keyword `{keyword}`")
+
+@bot.command()
+async def listexcludes(ctx, keyword=None):
+    """List all exclusions for a specific keyword or all keywords."""
+    guild_id = str(ctx.guild.id)
+    
+    # Check if guild has any exclusion lists
+    if guild_id not in exclusion_lists or not exclusion_lists[guild_id]:
+        await ctx.send("This server has no exclusion lists set up.")
+        return
+    
+    # List exclusions for a specific keyword
+    if keyword:
+        keyword = keyword.lower().strip()
+        if keyword in exclusion_lists[guild_id]:
+            exclusions = exclusion_lists[guild_id][keyword]
+            if exclusions:
+                await ctx.send(f"Exclusions for keyword `{keyword}`:\n" + 
+                              "\n".join([f"- `{word}`" for word in exclusions]))
+            else:
+                await ctx.send(f"No exclusions for keyword `{keyword}`")
+        else:
+            await ctx.send(f"No exclusions found for keyword `{keyword}`")
+    # List all keywords with exclusions
+    else:
+        response = "Keyword exclusion lists:\n"
+        for kw, exclusions in exclusion_lists[guild_id].items():
+            if exclusions:
+                response += f"\n`{kw}`: " + ", ".join([f"`{word}`" for word in exclusions])
+        
+        if len(response) > 2000:
+            # If the message is too long, send a summary instead
+            await ctx.send(f"Found exclusion lists for {len(exclusion_lists[guild_id])} keywords. " +
+                          "Use `!listexcludes keyword` to see exclusions for a specific keyword.")
+        else:
+            await ctx.send(response)
+            
+@bot.command()
+async def bulkexclude(ctx, *, content):
+    """Add multiple exclusions to a keyword from a bulk text.
+    First word is the keyword, all other words are exclusions.
+    
+    Usage: !bulkexclude keyword word1 word2 word3...
+    Example: !bulkexclude alt although alternative alteria altered
+    """
+    words = content.split()
+    
+    if len(words) < 2:
+        await ctx.send("❌ Please provide a keyword and at least one word to exclude. Usage: `!bulkexclude keyword word1 word2 ...`")
+        return
+        
+    keyword = words[0].lower().strip()
+    exclude_words = [word.lower().strip() for word in words[1:]]
+    
+    guild_id = str(ctx.guild.id)
+    
+    # Initialize guild's exclusion list if it doesn't exist
+    if guild_id not in exclusion_lists:
+        exclusion_lists[guild_id] = {}
+    
+    # Initialize keyword's exclusion list if it doesn't exist
+    if keyword not in exclusion_lists[guild_id]:
+        exclusion_lists[guild_id][keyword] = []
+    
+    # Add each word to exclude if it's not already in the list
+    added_count = 0
+    already_count = 0
+    
+    for word in exclude_words:
+        if word and word not in exclusion_lists[guild_id][keyword]:
+            exclusion_lists[guild_id][keyword].append(word)
+            added_count += 1
+        elif word:
+            already_count += 1
+    
+    # Save changes
+    if added_count > 0:
+        save_exclusion_lists()
+        await ctx.send(f"✅ Added {added_count} words to the exclusion list for keyword `{keyword}`")
+        
+    if already_count > 0:
+        await ctx.send(f"ℹ️ {already_count} words were already in the exclusion list for keyword `{keyword}`")
+        
+    # Show current count
+    total_exclusions = len(exclusion_lists[guild_id][keyword])
+    await ctx.send(f"Keyword `{keyword}` now has {total_exclusions} excluded words")
 
 @bot.command()
 async def find(ctx, *args):
     """Find messages containing any of the given keywords in the specified channels."""
-    global found_messages, search_in_progress, messages_scanned, matches_found, channels_total, current_channel, search_start_time, search_end_time
+    global found_messages, search_in_progress, messages_scanned, matches_found, channels_total, current_channel, search_start_time, search_end_time, max_results
     
     # Reset search state
     found_messages.clear()
     search_in_progress = True
     messages_scanned = 0
-    matches_found = 0  # Reset matches counter
+    matches_found = 0
     current_channel = ""
     search_start_time = time.time()
-    search_end_time = 0  # Reset end time at start of search
+    search_end_time = 0
+
+    # Check for limit parameter
+    limit_param = next((arg for arg in args if arg.startswith("limit=")), None)
+    if limit_param:
+        try:
+            requested_limit = int(limit_param.split("=")[1])
+            max_results = min(requested_limit, 100000)
+            args = tuple(arg for arg in args if not arg.startswith("limit="))
+            await ctx.send(f"Search limit set to {max_results} matches.")
+        except (ValueError, IndexError):
+            pass
 
     if len(args) < 2:
-        await ctx.send("Usage: `!find keyword1 keyword2 ... #channel1 #channel2`")
+        await ctx.send("Usage: `!find keyword1 keyword2 ... #channel1 #channel2` (optional: limit=50000)")
         search_in_progress = False
         return
 
     # Extract keywords (ignore anything that starts with '#' or '<#')
     keywords = [word.lower().strip() for word in args if not word.startswith("#") and not word.startswith("<#")]
     
-    # Inform about the keywords we're searching for
-    print(f"Searching for keywords: {keywords}")
-
     # Extract channels correctly
     channels = []
     for word in args:
@@ -577,6 +870,13 @@ async def find(ctx, *args):
                 channel = ctx.guild.get_channel(channel_id)
             except ValueError:
                 continue
+        # Add support for raw channel IDs
+        elif word.isdigit():
+            try:
+                channel_id = int(word)
+                channel = ctx.guild.get_channel(channel_id)
+            except ValueError:
+                continue
         else:
             continue
         
@@ -584,104 +884,130 @@ async def find(ctx, *args):
             channels.append(channel)
 
     if not channels:
-        await ctx.send("No valid channels specified. Please mention channels using `#channel-name` or `<#channel_id>`.")
+        await ctx.send("No valid channels specified. Please use `#channel-name`, `<#channel-id>` or raw channel ID.")
         search_in_progress = False
-        search_end_time = time.time()  # Set end time on error
+        search_end_time = time.time()
         return
 
+    # Get the guild's exclusion lists
+    guild_id = str(ctx.guild.id)
+    guild_exclusions = exclusion_lists.get(guild_id, {})
+    
     channels_total = len(channels)
     msg_index = 1
-    messages_to_display = {}
+    batch_size = 500  # Process in smaller batches for better UI responsiveness
+    current_batch = {}
     
-    # If we already have some messages from a previous search, clear them
-    if hasattr(ui, 'all_messages'):
-        ui.all_messages = {}
+    # Reset UI state
+    root.after(0, lambda: setattr(ui, 'all_messages', {}))
+    root.after(0, lambda: setattr(ui, 'keywords', keywords))
+    root.after(0, lambda: ui.status_label.config(text="Starting search...", foreground="blue"))
 
-    print(f"🔍 Searching for {keywords} in {len(channels)} channels...")
-    await ctx.send(f"Searching for messages with keywords: `{', '.join(keywords)}` in {len(channels)} channels. Please wait...")
-
-    # Flag to track if we hit the result limit
-    results_limited = False
+    await ctx.send(f"Searching for: `{', '.join(keywords)}` in {len(channels)} channels. Max results: {max_results}")
 
     for channel in channels:
         current_channel = channel.name
-        print(f"📡 Searching in #{channel.name}...")
+        print(f"Searching in #{channel.name}...")
         
         try:
             async for message in channel.history(limit=None, oldest_first=True):
                 messages_scanned += 1
                 
-                # Update progress every 100 messages
                 if messages_scanned % 100 == 0:
                     print(f"Scanned {messages_scanned} messages...")
                 
-                # Check if we've hit the maximum results limit
                 if matches_found >= max_results:
-                    results_limited = True
-                    print(f"⚠️ Reached maximum result limit of {max_results}. Stopping search.")
+                    await ctx.send(f"⚠️ Reached limit of {max_results} matches. Try a more specific search.")
                     break
                 
-                # Normalize message content for better matching
                 message_content = message.content.lower()
                 
-                # Check each keyword
+                # Check for matches with exclusion filtering (FIXED LOGIC HERE)
                 found_match = False
+                matched_keyword = None
+
                 for keyword in keywords:
                     if keyword in message_content:
+                        matched_keyword = keyword
                         found_match = True
-                        # Print debug info for matches
-                        print(f"Matched keyword '{keyword}' in: {message.content}")
                         break
-                
+
+                # If we found a match, check if it should be excluded
+                if found_match and matched_keyword in guild_exclusions:
+                    for exclude_word in guild_exclusions[matched_keyword]:
+                        if exclude_word in message_content:
+                            found_match = False
+                            break
+
                 if found_match:
-                    matches_found += 1  # Increment match counter
+                    matches_found += 1
                     msg_text = f"[{channel.name}] {message.author}: {message.content} ({message.created_at.strftime('%Y-%m-%d %H:%M:%S')})"
                     found_messages[msg_index] = (message, msg_text)
-                    messages_to_display[msg_index] = (message, msg_text)
-                    print(f"✅ MATCH #{matches_found}: {msg_text}")
-                    msg_index += 1
+                    current_batch[msg_index] = (message, msg_text)
                     
-                    # If we have a lot of matches, update UI in chunks to avoid memory issues
-                    if matches_found % 1000 == 0:
-                        # Create a copy of the current batch to display
-                        current_batch = messages_to_display.copy()
-                        # Update display asynchronously
-                        root.after(0, lambda batch=current_batch: ui.update_matches(batch))
-                        # Clear the batch to save memory
-                        messages_to_display = {}
-
-            # If we reached the limit, break out of channel loop too
-            if results_limited:
-                break
+                    # Process in smaller batches to keep UI responsive
+                    if len(current_batch) >= batch_size:
+                        batch_copy = current_batch.copy()
+                        root.after(0, lambda b=batch_copy: ui.update_matches(b))
+                        current_batch.clear()
+                        # Add small delay to allow UI to process
+                        await asyncio.sleep(0.1)
+                    
+                    msg_index += 1
 
         except discord.Forbidden:
-            print(f"❌ No permission to read messages in #{channel.name}")
+            print(f"No permission to read messages in #{channel.name}")
             await ctx.send(f"⚠️ No permission to read messages in #{channel.name}")
+        except Exception as e:
+            print(f"Error searching channel {channel.name}: {e}")
+            await ctx.send(f"⚠️ Error searching #{channel.name}: {e}")
 
-    # Set end time when all channels have been searched
+    # Process any remaining matches in the final batch
+    if current_batch:
+        final_batch = current_batch.copy()
+        root.after(0, lambda: ui.update_matches(final_batch))
+    
     search_end_time = time.time()
     
-    # Send appropriate messages based on results
-    if results_limited:
-        await ctx.send(f"⚠️ Search stopped after finding {matches_found} messages (maximum limit). Try a more specific search.")
-    else:
-        await ctx.send(f"✅ Search complete! Found {matches_found} messages matching your keywords. Check the UI to manage results.")
+    # Signal that search is complete and display results
+    await ctx.send(f"✅ Search complete! Found {matches_found} messages matching your keywords.")
     
-    # Display final batch of messages
-    if messages_to_display:
-        root.after(0, lambda: ui.display_messages(messages_to_display, keywords))
-    else:
-        search_in_progress = False  # Ensure search is marked as complete even if no messages are found
+    try:
+        # Give UI time to process all batches, then display first page
+        await asyncio.sleep(0.5)
+        
+        # Final UI update to show all results
+        root.after(0, lambda: ui.finalize_results(keywords))
+    except Exception as e:
+        print(f"Error finalizing search results: {e}")
+        await ctx.send(f"⚠️ Error displaying results: {e}")
 
-# Add debug command to test keyword matching
 @bot.command()
 async def testkeyword(ctx, keyword, *, sample_text):
     """Test if a keyword would match a given sample text."""
     keyword = keyword.lower().strip()
     sample_text = sample_text.lower()
     
+    # Get the guild's exclusion list for this keyword
+    guild_id = str(ctx.guild.id)
+    exclusions = exclusion_lists.get(guild_id, {}).get(keyword, [])
+    
+    # First check basic match
     if keyword in sample_text:
-        await ctx.send(f"✅ Keyword `{keyword}` MATCHES in the sample text.")
+        # Then check for exclusions
+        should_exclude = False
+        excluding_word = None
+        
+        for exclude_word in exclusions:
+            if exclude_word in sample_text:
+                should_exclude = True
+                excluding_word = exclude_word
+                break
+                
+        if should_exclude:
+            await ctx.send(f"❌ Keyword `{keyword}` matched but was excluded by `{excluding_word}`")
+        else:
+            await ctx.send(f"✅ Keyword `{keyword}` MATCHES in the sample text.")
     else:
         await ctx.send(f"❌ Keyword `{keyword}` does NOT match in the sample text.")
     
@@ -700,8 +1026,10 @@ async def testkeyword(ctx, keyword, *, sample_text):
         sample_snippet = sample_text[start:end]
         snippet_codes = " ".join(f"{ord(c):02x}" for c in sample_snippet)
         await ctx.send(f"Sample text snippet character codes: `{snippet_codes}`")
-
-# Delete this function as we're not using it anymore
+        
+    # Show active exclusions
+    if exclusions:
+        await ctx.send(f"Exclusions for keyword `{keyword}`: " + ", ".join([f"`{word}`" for word in exclusions]))
 
 # Run Discord bot in a separate thread
 threading.Thread(target=run_discord_bot, daemon=True).start()
