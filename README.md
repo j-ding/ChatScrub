@@ -5,18 +5,24 @@
 This Discord bot helps you manage messages by providing powerful search capabilities with an exclusion system to filter out unwanted matches. The bot combines Discord's API with a Tkinter GUI to create a comprehensive message management solution.
 
 <div align="center">
-  <img src="https://snapshotsdingpc.s3.us-east-1.amazonaws.com/discordbot1.JPG" alt="Discord Bot Main Interface" width="80%">
-  <p><em>Discord Bot - Main Interface</em></p>
+  <a href="https://snapshotsdingpc.s3.us-east-1.amazonaws.com/discordbot1.JPG" target="_blank">
+    <img src="https://snapshotsdingpc.s3.us-east-1.amazonaws.com/discordbot1.JPG" alt="Discord Bot Main Interface" width="400px">
+  </a>
+  <p><em>Discord Bot - Main Interface (click to enlarge)</em></p>
 </div>
 
 <div align="center">
-  <img src="https://snapshotsdingpc.s3.us-east-1.amazonaws.com/discordbot2.JPG" alt="Discord Bot Command Responses" width="80%">
-  <p><em>Discord Bot - Command Responses</em></p>
+  <a href="https://snapshotsdingpc.s3.us-east-1.amazonaws.com/discordbot2.JPG" target="_blank">
+    <img src="https://snapshotsdingpc.s3.us-east-1.amazonaws.com/discordbot2.JPG" alt="Discord Bot Command Responses" width="400px">
+  </a>
+  <p><em>Discord Bot - Command Responses (click to enlarge)</em></p>
 </div>
 
 <div align="center">
-  <img src="https://snapshotsdingpc.s3.us-east-1.amazonaws.com/discordbotexclusionlist.JPG" alt="Discord Bot Exclusion List" width="80%">
-  <p><em>Discord Bot - Exclusion List Configuration</em></p>
+  <a href="https://snapshotsdingpc.s3.us-east-1.amazonaws.com/discordbotexclusionlist.JPG" target="_blank">
+    <img src="https://snapshotsdingpc.s3.us-east-1.amazonaws.com/discordbotexclusionlist.JPG" alt="Discord Bot Exclusion List" width="400px">
+  </a>
+  <p><em>Discord Bot - Exclusion List Configuration (click to enlarge)</em></p>
 </div>
 
 ## Key Features
